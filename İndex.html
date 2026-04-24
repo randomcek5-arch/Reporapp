@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wales Report System v3</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body { background-color: #000; color: #0f0; font-family: 'Courier New', monospace; margin: 0; overflow: hidden; }
+        canvas { position: fixed; top: 0; left: 0; z-index: -1; } /* Matrix Arkaplan */
+
+        .container { position: relative; z-index: 1; padding: 15px; height: 100vh; display: flex; flex-direction: column; }
+        
+        /* Sağ Üst Üç Nokta Menü */
+        .menu-icon { position: absolute; top: 15px; right: 20px; font-size: 30px; cursor: pointer; color: #0f0; z-index: 10; }
+        
+        .header { text-align: center; margin-bottom: 20px; border-bottom: 1px solid #0f0; }
+        
+        .form-group { margin-bottom: 15px; background: rgba(0, 0, 0, 0.8); padding: 10px; border-radius: 5px; border: 1px solid #050; }
+        label { display: block; margin-bottom: 5px; font-size: 13px; font-weight: bold; }
+        select, input, textarea { 
+            width: 100%; padding: 10px; background: #000; border: 1px solid #0f0; 
+            color: #0f0; border-radius: 5px; box-sizing: border-box; font-family: monospace;
+        }
+
+        .report-btn { 
+            background: #f00; color: #fff; border: none; padding: 15px; 
+            width: 100%; border-radius: 5px; font-weight: bold; cursor: pointer;
+            box-shadow: 0 0 15px #f00;
+        }
+
+        /* Geçmiş Paneli (Modal) */
+        #history-panel {
+            position: fixed; top: 0; right: -100%; width: 80%; height: 100%;
+            background: rgba(0, 10, 0, 0.95); border-left: 2px solid #0f0;
+            transition: 0.4s; z-index: 20; padding: 20px; box-sizing: border-box;
+            overflow-y: auto;
+        }
+        #history-panel.active { right: 0; }
+        .history-item { border-bottom: 1px solid #050; padding: 10px 0; font-size: 12px; }
+        .status-wait { color: #ff0; }   /* Bekleniyor */
+        .status-ok { color: #0f0; }     /* Onaylandı */
+        .status-no { color: #f00; }     /* Onaylanmadı */
+    </style>
+</head>
+<body>
+
+    <canvas id="matrix"></canvas>
+
+    <div class="menu-icon" onclick="toggleHistory()">⋮</div>
+
+    <div id="history-panel">
+        <h2 style="color: #0f0; border-bottom: 1px solid #0f0;">GEÇMİŞ</h2>
+        <div id="history-list">
+            <div class="history-item">@hedef1 - <span class="status-wait">Bekleniyor</span></div>
+            <div class="history-item">@hedef2 - <span class="status-ok">Onaylandı</span></div>
+            <div class="history-item">@hedef3 - <span class="status-no">Onaylanmadı</span></div>
+        </div>
+        <button onclick="toggleHistory()" style="margin-top:20px; background:#0f0; border:none; width:100%; padding:10px;">KAPAT</button>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>WALES REPORT</h1>
+            <p id="user-display" style="font-size: 10px; color: #fff;"></p>
+        </div>
+
+        <div class="form-group">
+            <label>HEDEF TÜRÜ</label>
+            <select id="type">
+                <option value="Kanal">Kanal</option>
+                <option value="Grup">Grup</option>
+                <option value="User">Kullanıcı</option>
+                <option value="Bot">Bot</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>USER / LINK</label>
+            <input type="text" id="target" placeholder="@username">
+        </div>
+
+        <div class="form-group">
+            <label>AÇIKLAMA</label>
+            <textarea id="desc" placeholder="Rapor sebebi..."></textarea>
+        </div>
+
+        <button class="report-btn" onclick="submitReport()">REPORT GÖNDER</button>
+    </div>
+
+    <script>
+        const webapp = window.Telegram.WebApp;
+        webapp.expand();
+        webapp.ready();
+
+        if (webapp.initDataUnsafe.user) {
+            document.getElementById('user-display').innerText = "OP: " + webapp.initDataUnsafe.user.first_name + " [" + webapp.initDataUnsafe.user.id + "]";
+        }
+
+        function toggleHistory() {
+            document.getElementById('history-panel').classList.toggle('active');
+        }
+
+        function submitReport() {
+            const target = document.getElementById('target').value;
+            if(!target) { webapp.showAlert("Hedef boş olamaz!"); return; }
+
+            // Veriyi bota gönder ama uygulamayı kapatma
+            const reportData = {
+                target: target,
+                type: document.getElementById('type').value,
+                desc: document.getElementById('desc').value
+            };
+            
+            webapp.sendData(JSON.stringify(reportData));
+            webapp.showAlert("Rapor iletildi! Sistemden çıkılmıyor.");
+            
+            // Geçmişe ekle (Örnek olarak)
+            const list = document.getElementById('history-list');
+            list.innerHTML = `<div class="history-item">${target} - <span class="status-wait">Bekleniyor</span></div>` + list.innerHTML;
+        }
+
+        // MATRIX EFEKTİ
+        const canvas = document.getElementById('matrix');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        const letters = "0101010101010101";
+        const fontSize = 10;
+        const columns = canvas.width / fontSize;
+        const drops = [];
+        for (let i = 0; i < columns; i++) drops[i] = 1;
+
+        function draw() {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#0f0";
+            ctx.font = fontSize + "px arial";
+            for (let i = 0; i < drops.length; i++) {
+                const text = letters.charAt(Math.floor(Math.random() * letters.length));
+                ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+                drops[i]++;
+            }
+        }
+        setInterval(draw, 33);
+    </script>
+</body>
+</html>
